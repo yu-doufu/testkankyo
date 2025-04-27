@@ -1,17 +1,18 @@
 // YouTube IFrame Player APIを埋め込む
 let ytPlayer;
-let currentSongInterval; // 楽曲表示更新用のインターバル
-let videos = []; // 動画データのキャッシュ
+let currentSongInterval;
+let videos = [];
 
 // APIの準備ができたときにプレイヤーを生成
 function onYouTubeIframeAPIReady() {
     ytPlayer = new YT.Player('sample', {
-        height: '390',
-        width: '640',
-        videoId: 'T7CYthEK67Y', // 初期状態では動画IDを空に
+        height: '500',
+        width: '900',
+        videoId: '',
         playerVars: { controls: 1, autoplay: 0 },
         events: {
             'onReady': onPlayerReady,
+            'onStateChange': updateCurrentSongOnSeek,
             'onError': onPlayerError,
         },
     });
@@ -31,17 +32,18 @@ const loadVideos = async () => {
 
 // 動画選択用ドロップダウンを初期化
 async function initializeVideoSelection() {
-    await loadVideos(); // 動画データをロード
+    await loadVideos();
     const videoSelect = document.getElementById('video-select');
     const timestampSelect = document.getElementById('timestamp-select');
     const currentSongContainer = document.getElementById('current-song');
 
-    // 動画選択ドロップダウンを生成
+    videoSelect.style.width = "350px";
+    timestampSelect.style.width = "350px";
+
     videos.forEach((video, index) => {
         videoSelect.add(new Option(video.videoName, index));
     });
 
-    // 動画が選択されたときのイベントリスナー
     videoSelect.addEventListener('change', ({ target: { value: idx } }) => {
         const video = videos[idx];
         if (!video) {
@@ -49,11 +51,10 @@ async function initializeVideoSelection() {
             return;
         }
 
-        populateTimestampDropdown(video, timestampSelect); // タイムスタンプドロップダウンを更新
-        resetCurrentSong(currentSongContainer); // 楽曲表示をリセット
+        populateTimestampDropdown(video, timestampSelect); // **曲名ドロップダウンが正しく生成されるよう修正**
+        resetCurrentSong(currentSongContainer);
     });
 
-    // タイムスタンプが選択されたときのイベントリスナー
     timestampSelect.addEventListener('change', ({ target: { value: startSeconds } }) => {
         if (!isNaN(startSeconds)) {
             const videoIdx = videoSelect.value;
@@ -66,7 +67,7 @@ async function initializeVideoSelection() {
                     startSeconds: parseFloat(selectedTimestamp.start),
                 });
 
-                currentSongContainer.textContent = `現在の楽曲：${selectedTimestamp.title} ${selectedTimestamp.artist ? `(${selectedTimestamp.artist})` : ""}`;
+                updateCurrentSong(selectedTimestamp);
             }
         }
     });
@@ -74,7 +75,7 @@ async function initializeVideoSelection() {
 
 // タイムスタンプをドロップダウンに追加
 function populateTimestampDropdown(video, dropdown) {
-    dropdown.innerHTML = ''; // タイムスタンプドロップダウンを初期化
+    dropdown.innerHTML = ''; // **ドロップダウン初期化を適切に処理**
 
     video.timestamps.forEach(({ start, title, artist }) => {
         const optionText = `${title}${artist ? ` (${artist})` : ''}`;
@@ -85,23 +86,28 @@ function populateTimestampDropdown(video, dropdown) {
 
 // タイムスタンプドロップダウンをリセット
 function resetTimestampDropdown(dropdown, songContainer) {
-    dropdown.innerHTML = '<option value="">歌枠を選んだら曲も選んでくれよな！</option>'; // デフォルト値を表示
+    dropdown.innerHTML = '<option value="">歌枠を選んだら曲も選んでくれよな！</option>'; // **リセット処理の確認**
     resetCurrentSong(songContainer);
 }
 
-// 現在の楽曲表示をリセット
+// 楽曲情報を更新
+function updateCurrentSong(selectedTimestamp) {
+    const currentSongContainer = document.getElementById('current-song');
+    currentSongContainer.textContent = `現在の楽曲：${selectedTimestamp.title} ${selectedTimestamp.artist ? `(${selectedTimestamp.artist})` : ""}`;
+}
+
+// 楽曲情報のリセット
 function resetCurrentSong(songContainer) {
     songContainer.textContent = "現在の楽曲：";
 }
 
-// 楽曲情報を定期更新する処理
-const startCurrentSongUpdateInterval = () => {
-    currentSongInterval = setInterval(() => {
+// **シークバー変更やボタン操作に対応**
+function updateCurrentSongOnSeek() {
+    setInterval(() => {
         const currentTime = ytPlayer.getCurrentTime();
-        const currentVideoId = ytPlayer.getVideoData().video_id; // 現在の動画IDを取得
+        const currentVideoId = ytPlayer.getVideoData().video_id;
         const currentSongContainer = document.getElementById('current-song');
 
-        // 現在の動画のタイムスタンプを取得
         const currentVideo = videos.find(video => video.videoId === currentVideoId);
         if (!currentVideo) return;
 
@@ -111,21 +117,24 @@ const startCurrentSongUpdateInterval = () => {
             (idx === timestamps.length - 1 || currentTime < parseFloat(timestamps[idx + 1].start))
         );
 
-        // 楽曲を更新
         if (currentTimestamp) {
-            currentSongContainer.textContent = `現在の楽曲：${currentTimestamp.title} ${currentTimestamp.artist ? `(${currentTimestamp.artist})` : ""}`;
+            updateCurrentSong(currentTimestamp);
         }
-    }, 1000); // 1秒ごとに更新
-};
+    }, 1000);
+}
 
-// 再生ボタンやその他の制御ボタンを初期化
+// **ボタン操作の処理**
 function initializeButtonControls() {
     const controls = {
-        play: () => ytPlayer.playVideo(),
+        play: () => {
+            ytPlayer.playVideo();
+            updateCurrentSongOnSeek();
+        },
         pause: () => ytPlayer.pauseVideo(),
         stop: () => {
             ytPlayer.pauseVideo();
             ytPlayer.seekTo(0);
+            resetCurrentSong(document.getElementById('current-song'));
         },
         prev: () => ytPlayer.seekTo(Math.max(ytPlayer.getCurrentTime() - 10, 0)),
         next: () => ytPlayer.seekTo(ytPlayer.getCurrentTime() + 10),
@@ -139,37 +148,34 @@ function initializeButtonControls() {
     );
 }
 
-// ランダム再生機能
+// **ランダム再生ボタン修正**
 document.getElementById('random').addEventListener('click', () => {
-    const randomVideoIndex = Math.floor(Math.random() * videos.length); // ランダムで動画を選択
+    const randomVideoIndex = Math.floor(Math.random() * videos.length);
     const randomVideo = videos[randomVideoIndex];
-    const randomTimestampIndex = Math.floor(Math.random() * randomVideo.timestamps.length); // ランダムでタイムスタンプを選択
+    const randomTimestampIndex = Math.floor(Math.random() * randomVideo.timestamps.length);
     const randomTimestamp = randomVideo.timestamps[randomTimestampIndex];
 
     if (!randomVideo.videoId || !randomTimestamp.start) {
         return alert('無効な動画またはタイムスタンプです。');
     }
 
+    ytPlayer.stopVideo(); // **停止ボタンを押した後でも動作するよう修正**
     ytPlayer.loadVideoById({
         videoId: randomVideo.videoId,
         startSeconds: parseInt(randomTimestamp.start, 10),
     });
 
-    const currentSongContainer = document.getElementById('current-song');
-    currentSongContainer.textContent = `現在の楽曲：${randomTimestamp.title} ${randomTimestamp.artist ? `(${randomTimestamp.artist})` : ""}`;
+    updateCurrentSong(randomTimestamp);
 });
 
-// プレイヤーが準備完了したときの処理
+// **プレイヤー準備完了時の処理**
 const onPlayerReady = () => {
     initializeButtonControls();
-    startCurrentSongUpdateInterval(); // 定期更新を開始
+    updateCurrentSongOnSeek();
 };
 
-// エラー発生時の処理
+// **エラー処理**
 const onPlayerError = ({ data }) => console.error('エラーが発生しました:', data);
 
-// ページが閉じられる際のインターバルクリア
-window.addEventListener('beforeunload', () => clearInterval(currentSongInterval));
-
-// DOMがロードされたら初期化
+// **DOMがロードされたら初期化**
 document.addEventListener('DOMContentLoaded', initializeVideoSelection);
