@@ -8,8 +8,6 @@
     <!-- Google Fontsのインポート -->
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css"> <!-- CSSファイル -->
-    <script src="https://www.youtube.com/iframe_api"></script> <!-- YouTube API読み込み -->
-    <script src="./scripts.js" defer></script> <!-- JavaScriptファイル -->
 </head>
 <body>
 
@@ -57,6 +55,18 @@
         <button id="mute">🔇</button>
         <button id="random">RANDOM</button>
     </div>
+
+    <!-- YouTube API & スクリプト -->
+    <script src="https://www.youtube.com/iframe_api"></script> <!-- YouTube API -->
+    <script src="./scripts.js"></script> <!-- JavaScriptファイル -->
+
+    <script>
+        window.onload = function() {
+            if (typeof YT !== 'undefined' && YT.Player) {
+                onYouTubeIframeAPIReady();
+            }
+        };
+    </script>
 
 </body>
 </html>
